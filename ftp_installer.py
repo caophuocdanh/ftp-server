@@ -10,6 +10,8 @@ import ctypes
 INSTALL_DIR = r"C:\windows\ftpserver"
 # Tên file dịch vụ sẽ được sao chép
 SERVER_EXE_NAME = "ftpserver.exe"
+# Tên quy tắc tường lửa sẽ được tạo
+FIREWALL_RULE_NAME = "FTP Server (Port 21)"
 
 def is_admin():
     try:
@@ -25,6 +27,44 @@ def get_bundled_file_path(filename):
         base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, filename)
 
+def manage_firewall_rule(action):
+    """Quản lý quy tắc tường lửa cho FTP server (thêm hoặc xóa)."""
+    print(f"--- Dang thuc hien voi Firewall ---")
+    if action == "add":
+        print(f"Mo port 21 cho phep ket noi den (Rule: '{FIREWALL_RULE_NAME}')")
+        # Thêm quy tắc cho TCP
+        command_tcp = [
+            'netsh', 'advfirewall', 'firewall', 'add', 'rule',
+            f'name={FIREWALL_RULE_NAME}', 'dir=in', 'action=allow',
+            'protocol=TCP', 'localport=21'
+        ]
+        # Thêm quy tắc cho UDP (tùy chọn nhưng tốt nên có)
+        command_udp = [
+            'netsh', 'advfirewall', 'firewall', 'add', 'rule',
+            f'name={FIREWALL_RULE_NAME}', 'dir=in', 'action=allow',
+            'protocol=UDP', 'localport=21'
+        ]
+        try:
+            # Chạy lệnh mà không hiển thị output, bỏ qua lỗi nếu quy tắc đã tồn tại
+            subprocess.run(command_tcp, check=False, capture_output=True)
+            subprocess.run(command_udp, check=False, capture_output=True)
+            print(" -> Da them quy tac Firewall cho TCP & UDP.")
+        except Exception as e:
+            print(f" -> Loi khi them quy tac Firewall: {e}")
+
+    elif action == "remove":
+        print(f"Xoa quy tac Firewall '{FIREWALL_RULE_NAME}'")
+        command = [
+            'netsh', 'advfirewall', 'firewall', 'delete', 'rule',
+            f'name={FIREWALL_RULE_NAME}'
+        ]
+        try:
+            # Chạy lệnh, bỏ qua lỗi nếu quy tắc không tồn tại
+            subprocess.run(command, check=False, capture_output=True)
+            print(" -> Da xoa quy tac Firewall.")
+        except Exception as e:
+            print(f" -> Loi khi xoa quy tac Firewall: {e}")
+
 def install():
     print("--- Bat dau qua trinh cai dat ---")
     
@@ -38,7 +78,10 @@ def install():
     print(f"Sao chep file server toi: {dest_server_path}")
     shutil.copy2(source_server_path, dest_server_path)
 
-    # 3. Gọi lệnh "install" của chính file server tại vị trí mới
+    # 3. Thêm quy tắc Tường lửa
+    manage_firewall_rule("add")
+
+    # 4. Gọi lệnh "install" của chính file server tại vị trí mới
     print("Dang ky dich vu Windows...")
     try:
         # Chạy lệnh: C:\FTPService\ftp_server.exe --startup auto install
@@ -48,7 +91,7 @@ def install():
         )
         print(" -> Dang ky dich vu thanh cong.")
         
-        # 4. Khởi động dịch vụ
+        # 5. Khởi động dịch vụ
         print("Khoi dong dich vu...")
         subprocess.run([dest_server_path, 'start'], check=True, capture_output=True, text=True)
         print(" -> Dich vu da duoc khoi dong.")
@@ -67,6 +110,8 @@ def uninstall():
 
     if not os.path.exists(dest_server_path):
         print("Dich vu duong nhu chua duoc cai dat. Khong tim thay file.")
+        # Vẫn thử xóa quy tắc firewall phòng trường hợp gỡ cài đặt lần trước bị lỗi
+        manage_firewall_rule("remove")
         return
 
     # 1. Dừng và xóa dịch vụ
@@ -79,7 +124,10 @@ def uninstall():
         # Bỏ qua lỗi nếu dịch vụ không tồn tại
         print(" -> Dich vu khong ton tai hoac da duoc xoa.")
 
-    # 2. Xóa thư mục cài đặt
+    # 2. Xóa quy tắc Tường lửa
+    manage_firewall_rule("remove")
+
+    # 3. Xóa thư mục cài đặt
     print(f"Xoa thu muc cai dat: {INSTALL_DIR}")
     try:
         shutil.rmtree(INSTALL_DIR)
