@@ -20,7 +20,7 @@ FTP Server/
 ├── ftp_server.py          # FTP Server service (114 dòng)
 ├── ftp_installer.py       # Installer với UI đầy màu (208 dòng)  
 ├── ftp_server.ico         # Icon Windows
-├── build.cmd             # Script build tự động
+└── build.cmd             # Script build tự động
 ```
 
 ## 💻 Yêu cầu hệ thống
