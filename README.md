@@ -141,5 +141,4 @@ quit         # Exit
 - **Total Commander**: File manager có FTP
 
 ---
-**Phiên bản**: 1.0
-**Cập nhật**: 25/06/2025
+**Phiên bản**: 1.0 - **Cập nhật**: 25/06/2025
