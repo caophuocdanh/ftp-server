@@ -15,7 +15,7 @@ from colorama import init, Fore, Style, Back
 # --- CẤU HÌNH CHUNG ---
 INSTALL_DIR = r"C:\windows\ftpserver"
 SERVER_EXE_NAME = "ftpserver.exe"
-FIREWALL_RULE_NAME = "FTP Server (Cổng 21)"
+# Tên quy tắc tường lửa hiện được quản lý trực tiếp trong hàm manage_firewall_rule
 
 # --- CẤU HÌNH MÁY CHỦ FTP (Để hiển thị cho người dùng) ---
 # Các giá trị này phải khớp với cấu hình trong ftp_server.py
@@ -75,22 +75,57 @@ def prompt_with_timeout(seconds=5):
 
 def manage_firewall_rule(action):
     print(f"\n{Fore.CYAN}--- ĐĂNG KÝ TƯỜNG LỬA WINDOWS ---")
-    if action == "add":
-        print(f"{ICON_INFO} Mở cổng 21 cho phép kết nối đến (Rule: '{Style.BRIGHT}{FIREWALL_RULE_NAME}{Style.NORMAL}')")
-        command = ['netsh', 'advfirewall', 'firewall', 'add', 'rule', f'name={FIREWALL_RULE_NAME}', 'dir=in', 'action=allow', 'protocol=TCP,UDP', 'localport=21']
-        try:
-            subprocess.run(command, check=False, capture_output=True)
-            print(f"{ICON_OK} Đã thêm quy tắc Firewall cho TCP & UDP.")
-        except Exception as e:
-            print(f"{ICON_ERROR} Lỗi khi thêm quy tắc Firewall: {e}")
-    elif action == "remove":
-        print(f"{ICON_INFO} Xóa quy tắc Firewall '{Style.BRIGHT}{FIREWALL_RULE_NAME}{Style.NORMAL}'")
-        command = ['netsh', 'advfirewall', 'firewall', 'delete', 'rule', f'name={FIREWALL_RULE_NAME}']
-        try:
-            subprocess.run(command, check=False, capture_output=True)
-            print(f"{ICON_OK} Đã xóa quy tắc Firewall.")
-        except Exception as e:
-            print(f"{ICON_ERROR} Lỗi khi xóa quy tắc Firewall: {e}")
+    base_rule_name = "FTP Server (Cổng 21)"
+    protocols = ["TCP", "UDP"]
+
+    for protocol in protocols:
+        rule_name = f"{base_rule_name} ({protocol})"
+        if action == "add":
+            print(f"{ICON_INFO} Mở cổng 21 cho {protocol} (Rule: '{Style.BRIGHT}{rule_name}{Style.NORMAL}')")
+            command = [
+                'netsh', 'advfirewall', 'firewall', 'add', 'rule',
+                f'name={rule_name}', 'dir=in', 'action=allow',
+                f'protocol={protocol}', 'localport=21'
+            ]
+            
+            for attempt in range(2): # Lặp lại tối đa 2 lần
+                try:
+                    result = subprocess.run(command, check=False, capture_output=True, text=True, encoding='utf-8')
+                    
+                    if result.returncode == 0:
+                        print(f"{ICON_OK} Đã thêm quy tắc Firewall cho {protocol}.")
+                        break # Thành công, thoát khỏi vòng lặp thử lại
+
+                    output = f"{result.stdout}{result.stderr}".lower()
+                    if 'already exists' in output or 'đã tồn tại' in output:
+                        print(f"{ICON_WARN} Quy tắc Firewall cho {protocol} đã tồn tại.")
+                        break # Thành công (đã tồn tại), thoát khỏi vòng lặp thử lại
+                    
+                    # Nếu đến đây, có nghĩa là đã thất bại.
+                    if attempt == 0:
+                        print(f"{ICON_WARN} Thêm quy tắc thất bại, thử lại sau 1 giây...")
+                        time.sleep(1) # Đợi một giây trước khi thử lại
+                    else:
+                        # Đây là lần thử cuối cùng
+                        print(f"{ICON_ERROR} Lỗi khi thêm quy tắc Firewall cho {protocol}:")
+                        print(f"{Fore.RED}{result.stdout}{result.stderr}")
+
+                except Exception as e:
+                    if attempt == 0:
+                        print(f"{ICON_WARN} Gặp lỗi, thử lại sau 1 giây... ({e})")
+                        time.sleep(1)
+                    else:
+                        print(f"{ICON_ERROR} Lỗi ngoại lệ khi thêm quy tắc Firewall cho {protocol}: {e}")
+        
+        elif action == "remove":
+            print(f"{ICON_INFO} Xóa quy tắc Firewall '{Style.BRIGHT}{rule_name}{Style.NORMAL}'")
+            command = ['netsh', 'advfirewall', 'firewall', 'delete', 'rule', f'name={rule_name}']
+            try:
+                # Việc xóa một quy tắc không tồn tại không gây ra lỗi nghiêm trọng, vì vậy chúng ta chỉ cần chạy nó.
+                subprocess.run(command, check=False, capture_output=True)
+                print(f"{ICON_OK} Đã xử lý xóa quy tắc Firewall cho {protocol} (nếu tồn tại).")
+            except Exception as e:
+                print(f"{ICON_ERROR} Lỗi khi xóa quy tắc Firewall cho {protocol}: {e}")
 
 # ===============================================================
 # === HÀM INSTALL ĐÃ ĐƯỢC CẬP NHẬT ===
